@@ -20,6 +20,7 @@ import android.app.Application
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.work.*
@@ -27,16 +28,20 @@ import com.example.background.workers.BlurWorker
 import com.example.background.workers.CleanupWorker
 import com.example.background.workers.SaveImageToFileWorker
 
-
 class BlurViewModel(application: Application) : ViewModel() {
 
     internal var imageUri: Uri? = null
     internal var outputUri: Uri? = null
+    // New instance variable for the WorkInfo
+    internal val outputWorkInfos: LiveData<List<WorkInfo>>
 
     private val workManager = WorkManager.getInstance(application)
 
     init {
         imageUri = getImageUri(application.applicationContext)
+        // This transformation makes sure that whenever the current work Id changes the WorkInfo
+        // the UI is listening to changes
+        outputWorkInfos = workManager.getWorkInfosByTagLiveData(TAG_OUTPUT)
     }
 
     /**
@@ -79,9 +84,10 @@ class BlurViewModel(application: Application) : ViewModel() {
             continuation = continuation.then(blurBuilder.build())
         }
 
-
         // Add WorkRequest to save the image to the filesystem
-        val save = OneTimeWorkRequest.Builder(SaveImageToFileWorker::class.java).build()
+        val save = OneTimeWorkRequest.Builder(SaveImageToFileWorker::class.java)
+            .addTag(TAG_OUTPUT)
+            .build()
 
         continuation = continuation.then(save)
 
